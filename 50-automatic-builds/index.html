@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>README.md</title>
+  <link rel="stylesheet" href="../modest.css">
+</head>
+<body>
+<h1 id="builds-autom-ticos">Builds automáticos</h1>
+<h2 id="aprender-s-a-">Aprenderás a...</h2>
+<ul>
+<li>Crear imágenes auditables de forma automática a partir de un commit</li>
+<li>Desplegar contenedores y gestionarlos</li>
+<li>Interconectar contenedores a usando <em>links</em></li>
+<li>Interconectar contenedores a través con <em>networks</em></li>
+</ul>
+<h2 id="proyecto-y-dockerfile">Proyecto y Dockerfile</h2>
+<ul>
+<li>Realiza tu propio fork del <a href="https://github.com/capside/docker-swarm-mode-workshop/tree/master/internal-service">código del proyecto</a> en tu cuenta de github</li>
+</ul>
+<p><img src="github_fork.png" alt="Fork github"></p>
+<ul>
+<li>Incluye dos aplicaciones: <a href="https://github.com/capside/docker-swarm-mode-workshop/tree/master/internal-service">internal-service</a> y <a href="https://github.com/capside/docker-swarm-mode-workshop/tree/master/edge-service">edge-service</a>, nos centraremos en la primera.</li>
+</ul>
+<p>Se trata de un servidor http mínimo en nodejs y el Dockerfile asociado:</p>
+<pre><code>FROM node:7.10.0-alpine
+COPY RiverSongService.js .
+EXPOSE 8888
+CMD [&quot;node&quot;, &quot;RiverSongService.js&quot;]
+</code></pre><ul>
+<li>Lee el <a href="https://github.com/nodejs/docker-node/tree/master/7.10/alpine">Dockerfile de node:7.10.0-alpine</a></li>
+<li>Responde:<ul>
+<li>¿Qué utilidad tiene construir una jerarquía de imágenes?</li>
+<li>¿Para qué sirven ENV, RUN y CMD?</li>
+<li>¿Por qué no utiliza un único RUN y genera dos layers?</li>
+</ul>
+</li>
+</ul>
+<h2 id="build-de-im-genes-autom-ticos">Build de imágenes automáticos</h2>
+<ul>
+<li>Crea una cuenta en <a href="https://hub.docker.com/">https://hub.docker.com/</a></li>
+<li>Configura un <em>automatic build</em></li>
+</ul>
+<p><img src="docker_hub_create_automatic_builds.png" alt="Automatic build"></p>
+<ul>
+<li>Enlaza la cuenta con github</li>
+</ul>
+<p><img src="docker_hub_link_github.png" alt="Link github"></p>
+<ul>
+<li>Selecciona el proyecto</li>
+</ul>
+<p><img src="docker_hub_select_project.png" alt="Seleccionar proyecto"></p>
+<ul>
+<li>Configura los detalles del build</li>
+</ul>
+<p><img src="docker_hub_configure_build.png" alt="Build conf"></p>
+<ul>
+<li>Lanza un nuevo build en <em>build settings</em></li>
+</ul>
+<p><img src="docker_hub_trigger_build.png" alt="trigger build">    </p>
+<ul>
+<li>Espera a que finalice en <em>build details</em></li>
+</ul>
+<p><img src="docker_hub_build_details_building.png" alt="build details"></p>
+<h2 id="gestionando-contenedores">Gestionando contenedores</h2>
+<ul>
+<li>Instala <a href="https://stedolan.github.io/jq/download/">jq</a> porque lo necesitarás para filtrar json</li>
+<li>Recuerda que puedes juegar con la sintaxis de jq en <a href="https://jqplay.org">https://jqplay.org</a></li>
+<li>Revisa tu entorno de Docker</li>
+</ul>
+<pre><code>docker info
+</code></pre><ul>
+<li><p>Ejecuta la imagen en un contenedor</p>
+<pre><code>docker run ^
+  --detach ^
+  --name internal_service ^
+  --rm \ 
+  --publish 80:8888  ^
+  --label priority=medium ^
+  &lt;tu-repositorio&gt;/internal-service
+</code></pre></li>
+<li><p>Localiza los servicios con prioridad <em>medium</em> (también puedes usar <code>docker container ls</code>)</p>
+</li>
+</ul>
+<pre><code> docker ps --format {{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Labels}} --filter name=serv --filter label=priority=medium
+</code></pre><ul>
+<li>Revisa su configuración general y lista los puertos publicados</li>
+</ul>
+<pre><code>docker inspect internal_service
+docker inspect internal_service | jq &#39;.[0].NetworkSettings.Ports | to_entries[] | &quot;\(.key) -&gt; \(.value [].HostPort)&quot;&#39;
+</code></pre><ul>
+<li>Consigue lo mismo, pero <em>the easy way</em> ;-)</li>
+</ul>
+<pre><code>docker port internal_service
+</code></pre><ul>
+<li>Lee el log de salida del contenedor</li>
+</ul>
+<pre><code>docker logs internal_service
+</code></pre><ul>
+<li>Vigila el consumo de recursos </li>
+</ul>
+<pre><code>docker stats
+</code></pre><ul>
+<li>Arranca el servicio externo</li>
+</ul>
+<pre><code>docker run ^
+    --detach ^
+    --name external_service ^
+    --publish 81:80 ^
+    --link internal_service ^
+    --env INTERNAL_SERVICE_NAME=internal_service ^
+    ciberado/external-service
+</code></pre><ul>
+<li><p>Comprueba que el servicio interno está publicado abriendo <code>localhost:81</code></p>
+</li>
+<li><p>Para los contenedores (también puedes usar <code>docker kill</code>)</p>
+</li>
+</ul>
+<pre><code>docker stop internal_service
+docker stop external_service
+</code></pre><ul>
+<li>Revisa todos los contenedores parados</li>
+</ul>
+<pre><code>docker ps -a --filter status=exited
+</code></pre><ul>
+<li>Elimina el contendor external_service (no utilizaste <code>--rm</code> al arrancarlo)</li>
+</ul>
+<pre><code>docker rm external_service
+</code></pre><h2 id="networking">Networking</h2>
+<ul>
+<li>Crea una red y lanza los dos contenedores en ella <strong>sin</strong> enlazarlos</li>
+</ul>
+<pre><code>docker network create gallifrey
+docker run ^
+    --detach ^
+    --name internal_service ^
+    --label priority=medium ^
+    --network gallifrey ^
+    ciberado/internal-service
+docker run ^
+    --detach ^
+    --name external_service ^
+    --publish 80:80 ^
+    --network gallifrey ^
+    --env INTERNAL_SERVICE_NAME=internal_service ^
+    ciberado/external-service
+</code></pre><ul>
+<li><p>Comprueba que puedes acceder a la aplicación con el navegador (esta vez en el puerto 80) y que los contenedores siguen resolviendo sus nombres correctamente</p>
+</li>
+<li><p>Elimina todos los contenedores </p>
+</li>
+</ul>
+<p>Unix:</p>
+<pre><code>docker rm --force $(docker ps -aq)
+</code></pre><p>Windows:</p>
+<pre><code>for /f %i in (&#39;docker ps -aq&#39;) do docker rm --force %i
+</code></pre><ul>
+<li>Revisa el consumo de disco y recupera espacio (<strong>CUIDADO CON EL -all</strong>)</li>
+</ul>
+<pre><code>docker system df
+docker system prune --all
+</code></pre></body>
+</html>
+<meta charset=utf-8> 

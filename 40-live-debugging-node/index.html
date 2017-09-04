@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>README.md</title>
+  <link rel="stylesheet" href="../modest.css">
+</head>
+<body>
+<h1 id="docker-para-programadores-nodejs">Docker para programadores NodeJS</h1>
+<h2 id="aprender-s-a-">Aprenderás a...</h2>
+<ul>
+<li>Lanzar aplicaciones node dentro de un contenedor</li>
+<li>Depurar desde chrome aplicaciones contenerizadas</li>
+<li>Crear un workflow de trabajo eficiente </li>
+</ul>
+<h2 id="requisitos">Requisitos</h2>
+<ul>
+<li>Docker </li>
+<li>Chrome</li>
+<li>Te será útil sustituir en este documento la expresión <code>&lt;local-folder&gt;</code> por tu carpeta de trabajo, por ejemplo <code>/c/workshop</code> en Windows o <code>$HOME/workshop</code> en Mac/Linux.</li>
+</ul>
+<h2 id="ejecutando-node-en-contenedor">Ejecutando node en contenedor</h2>
+<ul>
+<li>Lanza <code>node:alpine</code> para comprobar lo sencillo que es utilizar Nodejs con Docker:</li>
+</ul>
+<pre><code>docker run --rm -it node:alpine
+&gt; console.log(&#39;Hola mundo!&#39;);
+&gt; .exit
+</code></pre><h2 id="creaci-n-del-proyecto">Creación del proyecto</h2>
+<ul>
+<li>Utilizando tu veneno preferido crea una carpeta de trabajo (por ejemplo <code>/workshop</code>) y añade el fichero <code>riversong.js</code> con el siguiente contenido en ella:</li>
+</ul>
+<pre><code>var http = require(&#39;http&#39;),
+    os = require(&#39;os&#39;);
+
+var ifaces = os.networkInterfaces();
+var identity = &#39;&#39;;
+Object.keys(ifaces).forEach(function (ifname) {
+  ifaces[ifname].forEach(function (iface) {
+    if (&#39;IPv4&#39; !== iface.family || iface.internal !== false) return;
+    identity = identity + &#39;[&#39; + (iface.address) + &#39;] &#39;;
+  });
+});
+
+var server = http.createServer(function (request, response) {
+  response.writeHead(200, {&#39;Content-Type&#39;: &#39;application/json&#39;});
+  var content = {
+      name : &#39;Dr River Song!&#39;,
+      photo: &#39;https://upload.wikimedia.org/wikipedia/en/3/3f/River_Song_Doctor_Who.png&#39;,
+      position: &#39;Archaeologist&#39;,
+      message : &#39;I hate you.&#39;,
+      identity: identity
+  };
+
+  response.end(JSON.stringify(content));
+});
+
+server.listen(80);
+
+console.log(&#39;Riversong initialized on port 80.&#39;);
+</code></pre><h2 id="ejecuta-el-proyecto-en-un-contenedor">Ejecuta el proyecto en un contenedor</h2>
+<ul>
+<li>Lanza un contenedor con la aplicación y comprueba que puedes acceder a ella desde tu navegador. Recuerda que tienes que sustituir &lt;local-folder&gt; por la carpeta en la que has creado el fichero (¿<code>/workshop</code>?) y que mientras que la primera aparición de la palabra <em>node</em> hace referencia al nombre de la imagen en el Docker Hub la segunda se refiere al comando que quieres ejecutar en el contenedor</li>
+</ul>
+<pre><code>docker run --rm --detach --publish 80:80 -w=/app --volume &lt;local-folder&gt;:/app node:alpine node riversong.js
+</code></pre><ul>
+<li>Check the application with your browser opening <code>localhost:80</code>. Kill the container after that with <code>docker kill &lt;container-id&gt;</code>.</li>
+</ul>
+<h2 id="remote-debugging">Remote debugging</h2>
+<ul>
+<li>Use the flag <code>--inspect</code> in order to activate remote debugging (default port is <code>9229</code>)</li>
+</ul>
+<pre><code>docker run --rm -it --publish 80:80 --publish 9229:9229 -w=/app --volume &lt;local-folder&gt;:/app node:alpine node --inspect=0.0.0.0:9229 riversong.js
+</code></pre><ul>
+<li>Open the address <code>about:inspect</code> on Chrome an press the <code>inspect</code> button:</li>
+</ul>
+<p><img src="media/10-chrome-inspect.png" alt="Remote debugger"></p>
+<ul>
+<li>Look for the <code>riversong.js</code> node on the left tree and use it to open the source code. Set a breakpoint in line 14.</li>
+</ul>
+<p><img src="media/20-breakpoint.png" alt="Creating a breakpoint"></p>
+<ul>
+<li><p>Invoke again the application. You will be able to step over or evaluate expressions in the Nodejs runtime running inside the container.</p>
+</li>
+<li><p>You can now kill the container with <code>docker ps</code> and <code>docker kill &lt;id&gt;</code>.</p>
+</li>
+</ul>
+<h2 id="automatic-code-reload">Automatic code reload</h2>
+<p><code>nodemon</code> is a Nodejs wrapper that makes easy reloading the code. Just modify the source of your project an dtype <code>rs</code> in the <code>nodemon</code> console.</p>
+<ul>
+<li>Create this small script in a file called <code>debug.sh</code>:</li>
+</ul>
+<pre><code>#/bin/sh
+
+npm install -g nodemon
+nodemon --inspect=0.0.0.0:9229 riversong.js
+</code></pre><ul>
+<li>Launch it inside a new container:</li>
+</ul>
+<pre><code>docker run --rm -it --publish 9229:9229 --publish 80:80 -w/app --volume &lt;local-folder&gt;:/app node:alpine /bin/sh -c &quot;/app/debug.sh&quot;
+</code></pre><ul>
+<li>Use your weapon of choose to modify the source code of the project (<code>riversong.js</code>). For example, change line number 16:</li>
+</ul>
+<pre><code>---
+name : &#39;Dr River Song!&#39;,
++++
+name : &#39;Dr River Song!!!!!!!!!!!!&#39;,
+</code></pre><ul>
+<li>Using the <code>nodemon</code> terminal type the reload command:</li>
+</ul>
+<pre><code>rs
+</code></pre><ul>
+<li>Check the new version, opening again the application with your browser: <code>http://localhost:80</code></li>
+</ul>
+<h2 id="editing-from-chrome">Editing from Chrome</h2>
+<ul>
+<li>Chrome has a very nice js editor. To activate it use RMB over the explorer (on the left part of the screeen) and select <code>Add folder to workspace</code>. After that look for the directory that contains your application and accept the permission granting requirement:</li>
+</ul>
+<p><img src="images/30-workspace.png" alt="Add to workspace"></p>
+<p><img src="images/40-allow.png" alt="Select folder"></p>
+<p><img src="images/50-allow.png" alt="Accept disk access"></p>
+<ul>
+<li>Now map the paths in the browser with the actual physical files. To do it press RMB over the <code>riversong.js</code> file and choose <code>Map to network resource</code>. Just accept the option provided by the browser.</li>
+</ul>
+<p><img src="images/60-map.png" alt="Map network resource"></p>
+<p><img src="images/70-accept-mapping.png" alt="Accept mapping"></p>
+<h2 id="dockerfile-optimization">Dockerfile optimization</h2>
+<p>Downloading <code>nodemon</code> each time you launch your container is a slow process. Let&#39;s create an image already containing it.</p>
+<ul>
+<li>Create a new file named <code>Dockerfile-dev</code> in the working directory and paste this content on it:</li>
+</ul>
+<pre><code>FROM node:alpine
+RUN npm install -g nodemon
+COPY riversong.js .
+EXPOSE 80
+CMD [&quot;nodemon&quot;, &quot;--inspect=0.0.0.0:9229&quot;, &quot;riversong.js&quot;]
+</code></pre><ul>
+<li>Use the <code>build</code> command to create the new image:</li>
+</ul>
+<pre><code>docker build -t riversong:dev -f Dockerfile-dev .
+</code></pre><ul>
+<li>Feel free to launch your dev environment using it:</li>
+</ul>
+<pre><code>docker run --rm -it --publish 9229:9229 --publish 80:80 -w/app --volume &lt;local-folder&gt;:/app riversong:dev
+</code></pre><h2 id="creating-a-production-ready-version">Creating a production-ready version</h2>
+<ul>
+<li>The production <code>Dockerfile</code> is even easier to write:</li>
+</ul>
+<pre><code>FROM node:alpine
+COPY riversong.js .
+EXPOSE 80 
+CMD [&quot;node&quot;, &quot;riversong.js&quot;]
+</code></pre><ul>
+<li>Build the new image and (optionally) push it to your public repo in the registry:</li>
+</ul>
+<pre><code>docker build -t &lt;repo&gt;/riversong:port80 .
+docker push &lt;repo&gt;/riversong:port80
+</code></pre></body>
+</html>
+<meta charset=utf-8> 

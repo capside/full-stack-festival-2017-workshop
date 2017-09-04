@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>README.md</title>
+  <link rel="stylesheet" href="../modest.css">
+</head>
+<body>
+<h1 id="docker-para-programadores-java">Docker para programadores Java</h1>
+<h2 id="aprender-s-a-">Aprenderás a...</h2>
+<ul>
+<li>Generar un pequeño proyecto que implemente un API REST con Springboot</li>
+<li>Ejecutar la jvm en un contenedor</li>
+<li>Utilizar un IDE gráfico</li>
+<li>Depurar en vivo el proyecto desplegado en el contenedor</li>
+<li>Crear Dockerfiles para tus proyectos</li>
+</ul>
+<h2 id="requisitos">Requisitos</h2>
+<ul>
+<li>Docker </li>
+<li>Un IDE, preferiblemente <a href="https://netbeans.org/downloads/">Netbeans</a> con <a href="https://github.com/AlexFalappa/nb-springboot">Springboot plugin</a></li>
+</ul>
+<h2 id="creaci-n-de-un-proyecto">Creación de un proyecto</h2>
+<ul>
+<li><p>Si no estás familiarizado con Java y quieres terminar cuanto antes puedes descargar desde <a href="https://github.com/ciberado/docker-java-workshop/releases/tag/basic">github</a> el proyecto básico.</p>
+</li>
+<li><p>Visita <a href="http://start.spring.io/">http://start.spring.io/</a> y crea un nuevo proyecto con las referencias a <code>web</code>, <code>actuator</code>, <code>lombok</code> y <code>devtools</code>. Descarga y descomprime la carpeta correspondiente. </p>
+</li>
+</ul>
+<p><img src="images/10-spring-wizard.png" alt="Spring start"></p>
+<ul>
+<li>Abre el proyecto desde el IDE y recupera las referencias necesarias. Comprueba que en <code>~/.m2</code> tienes el repositorio con la cache de Maven.</li>
+</ul>
+<p><img src="images/20-build.png" alt="Build"></p>
+<p><img src="images/30-maven-repository.png" alt="Maven repo"></p>
+<ul>
+<li>Crea el componente de modelo que implementa un mensaje de texto (<code>Message.java</code>)</li>
+</ul>
+<pre><code class="lang-java">package com.capside.javawithdocker.javawithdocker;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+
+/**
+ *
+ * @author Javi
+ */
+@AllArgsConstructor @Data
+public class Message {
+    private String text;
+}
+</code></pre>
+<ul>
+<li>Añade un controlador (<code>APICtrl.java</code>)</li>
+</ul>
+<pre><code>package com.capside.javawithdocker.javawithdocker;
+
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+/**
+ *
+ * @author Javi
+ */
+@RestController
+public class APICtrl {
+
+    @GetMapping(path = &quot;/messages&quot;, params = &quot;type=greetings&quot;)
+    public Message greetings(@RequestParam(defaultValue = &quot;dear&quot;) String name) {
+        return new Message(String.format(&quot;Greetings %s.&quot;, name));
+    }
+
+    @GetMapping(path = &quot;/messages&quot;, params = &quot;type=oops&quot;)
+    public void shutdownByABug() {
+        System.exit(1);
+    }
+}
+</code></pre><ul>
+<li>Opcionalmente ejecuta el programa y pruébalo abriendo las direcciones <code>http://localhost:8080/messages?type=greetings&amp;name=Alice</code> y <code>http://localhost:8080/messages?type=oops</code> desde tu navegador.</li>
+</ul>
+<p>Ya tienes tu proyecto creado y funcionando. En otro workshop añadiremos tests unitarios y de integración pero ahora vamos a ver cómo podemos ejecutarlo dentro de un contenedor.</p>
+<h2 id="utilizando-maven-desde-docker">Utilizando Maven desde Docker</h2>
+<ul>
+<li>Asegúrate de que Docker for Windows tiene acceso al disco en el que estás trabajando:</li>
+</ul>
+<p><img src="images/40-shared-drive.png" alt="Share drive"></p>
+<ul>
+<li>Abre una consola (bash o CMD) y mueve el prompt a la carpeta que contiene el proyecto (<code>/tmp/javawithdocker</code>, por ejemplo). Ejecuta un contenedor interactivo con soporte para Maven en el que puedas acceder al código:</li>
+</ul>
+<pre><code class="lang-CMD">REM windows version
+docker run -it --name java --rm ^
+-v &quot;%CD%&quot;:/app ^
+-e &quot;TERM=xterm-256color&quot; ^
+-w /app ^
+maven:3-jdk-8 bash
+</code></pre>
+<pre><code class="lang-bash"># bash version
+docker run -it --name java --rm \
+-v &quot;$PWD&quot;:/app \
+-e &quot;TERM=xterm-256color&quot; \
+maven:3-jdk-8 bash
+</code></pre>
+<ul>
+<li>Comprueba que estás en la carpeta que contiene el código y compílalo. Apunta cuánto tiempo tarda en completarse el proceso</li>
+</ul>
+<pre><code class="lang-bash">root@xxx:/app# ls
+root@xxx:/app# mvn package
+root@xxx:/app# exit
+</code></pre>
+<ul>
+<li>Lanza un nuevo contenedor pero esta vez asegúrate de montar el repositorio local de Maven.</li>
+</ul>
+<pre><code class="lang-CMD">REM windows version
+docker run -it --name java --rm ^
+-v &quot;%CD%&quot;:/app ^
+-v &quot;%USERPROFILE%&quot;/.m2:/root/.m2  ^
+-e &quot;TERM=xterm-256color&quot; ^
+-w /app ^
+maven:3-jdk-8 bash
+</code></pre>
+<pre><code class="lang-bash"># bash version
+docker run -it --name java --rm \
+-v &quot;$PWD&quot;:/app \
+-v &quot;$HOME&quot;/.m2:/root/.m2  \
+-e &quot;TERM=xterm-256color&quot; \
+maven:3-jdk-8 bash
+</code></pre>
+<ul>
+<li>Repite el proceso de compilar el proyecto y compara los tiempos empleados por Maven:</li>
+</ul>
+<pre><code>root@xxx:/app# mvn package
+root@xxx:/app# exit
+</code></pre><h2 id="probando-la-aplicaci-n">Probando la aplicación</h2>
+<ul>
+<li>Lanza el contenedor abriendo los puertos 8080 (que utiliza por defecto nuestro proyecto) y el 5005 (para depurar remotamente). </li>
+</ul>
+<pre><code class="lang-CMD">REM windows version
+docker run -it --name java --rm ^
+-v &quot;%CD%&quot;:/app ^
+-v &quot;%USERPROFILE%&quot;/.m2:/root/.m2  ^
+-e &quot;TERM=xterm-256color&quot; ^
+-w /app ^
+--publish 8080:8080 ^
+--publish 5005:5005 ^
+maven:3-jdk-8 bash
+</code></pre>
+<pre><code class="lang-bash"># bash version
+docker run -it --name java --rm \
+-v &quot;$PWD&quot;:/app \
+-v &quot;$HOME&quot;/.m2:/root/.m2  \
+-e &quot;TERM=xterm-256color&quot; \
+--publish 8080:8080 \
+--publish 5005:5005 \
+maven:3-jdk-8 bash
+</code></pre>
+<ul>
+<li>Ejecuta la aplicación haciendo que espere a que un depurador externo se conecte a la jvm:</li>
+</ul>
+<pre><code class="lang-bash">java -Xdebug -Xrunjdwp:server=y,transport=dt_socket,address=5005,suspend=y -jar target/javawithdocker-0.0.1-SNAPSHOT.jar
+</code></pre>
+<ul>
+<li>Activa el depurador remoto de Netbeans. Si estás utilizando <em>docker-machine</em> asegúrate de utilizar la IP de la máquina virtual en lugar de <code>127.0.0.1</code>.</li>
+</ul>
+<p><img src="images/50-attach-debugger.png" alt="Attach debugger"></p>
+<p><img src="images/60-attach-debugger-2.png" alt="Attach debugger dialog"></p>
+<ul>
+<li>Fija un breakpoint en el código de <code>APICtrl.java</code>:</li>
+</ul>
+<p><img src="images/70-breakpoint.png" alt="breakpoint"></p>
+<ul>
+<li>Invoca de nuevo el servicio abriendo <code>http://localhost:8080/messages?type=greetings&amp;name=Alice</code> y utiliza las herramientas de depuración para comprobar el valor de la variable <code>name</code>.</li>
+</ul>
+<p><img src="images/80-var-watch.png" alt="Variable watching"></p>
+<ul>
+<li>Elimina el breakpoint.</li>
+<li>Modifica el código del controlador para que el mensaje esté en mayúsculas y pulsa el botón para realizar una modificación en caliente en la jvm:</li>
+</ul>
+<p><img src="images/90-hot-fixing.png" alt="Hot fixing"></p>
+<ul>
+<li>Agrega una nueva operación en <code>APICtrl.java</code></li>
+</ul>
+<pre><code class="lang-java">@GetMapping(path = &quot;/messages&quot;, params = &quot;type=goodbye&quot;)
+public Message goodbye(@RequestParam(defaultValue = &quot;dear&quot;) String name) {
+    return new Message(String.format(&quot;Have a nice day, %s.&quot;, name).toUpperCase());
+}
+</code></pre>
+<ul>
+<li>Si intentas ejecutar de nuevo un hot-fix obtendrás un mensaje como el siguiente: <em>The virtual machine does not support this operation: add method not implemented</em>. Pero calma, ahora lo arreglamos.</li>
+</ul>
+<h2 id="context-restarting-bajo-demanda">Context restarting bajo demanda</h2>
+<ul>
+<li><p>Si no quieres pelearte con Netbeans o Java puedes bajar el proyecto actualizado desde <a href="https://github.com/ciberado/docker-java-workshop/releases/tag/livedebugging-1">github</a>.</p>
+</li>
+<li><p>Crea un fichero <code>.reloadtrigger</code> en la raíz del proyecto. Modificar este fichero provocará la recarga del contexto de Spring.</p>
+</li>
+<li><p>Añade las siguientes líneas a <code>application.properties</code> para que Spring sepa que debe monitorizar dicho fichero</p>
+</li>
+</ul>
+<pre><code class="lang-properties">spring.devtools.restart.additional-paths=.
+spring.devtools.restart.trigger-file=.reloadtrigger
+</code></pre>
+<ul>
+<li>Utiliza la tarea de Maven <code>spring-boot:run</code> para ejecutar la aplicación en lugar de invocar directamente la jvm. Puedes comprobar cómo se utiliza <code>-Drun.jvmArguments</code> para especificar opciones de la jvm y <code>-D</code> directamente para indicar opciones de la aplicación. </li>
+</ul>
+<pre><code class="lang-bash">mvn spring-boot:run \
+-Drun.jvmArguments=&quot;-Xdebug -Xrunjdwp:transport=dt_socket,server=y,address=5005,suspend=y&quot; \
+-Dserver.port=8080
+</code></pre>
+<p><img src="images/95-application-properties-configure-restart.png" alt="restart config"></p>
+<ul>
+<li>Conecta de nuevo el depurador</li>
+</ul>
+<p><img src="images/100-attach-debugger.png" alt="attach debugger"></p>
+<ul>
+<li>Edita de nuevo <code>APICtrl.java</code> (por ejemplo añadiendo la operación con la que probamos antes). </li>
+</ul>
+<pre><code class="lang-java">@GetMapping(path = &quot;/messages&quot;, params = &quot;type=goodbye&quot;)
+public Message goodbye(@RequestParam(defaultValue = &quot;dear&quot;) String name) {
+    return new Message(String.format(&quot;Have a nice day, %s.&quot;, name).toUpperCase());
+}
+</code></pre>
+<ul>
+<li><p>Si revisas el output de consola verás que al guardar no sucede nada pero que sin embargo al generar cualquier cambio en <code>.reloadtrigger</code> el contexto se recarga completamente.</p>
+</li>
+<li><p>Invoca la nueva operación abriendo <code>http://127.0.0.1:8080/messages?type=goodbye</code>. En caso de que no se hayan aplicado los cambios que hemos hecho ejecuta un <em>build</em>.</p>
+</li>
+</ul>
+<p><img src="images/110-build.png" alt="Build project"></p>
+<h2 id="creaci-n-de-una-imagen-b-sica">Creación de una imagen básica</h2>
+<ul>
+<li>Vamos a convertir nuestro proyecto en una imagen de la forma más sencilla posible. Si no te ves picando códigos puedes descargar la versión del proyecto desde <a href="">github</a>.</li>
+<li>Crea un archivo Dockerfile en la raíz del proyecto</li>
+</ul>
+<p><img src="images/120-new-dockerfile.png" alt="Create dockerfile"></p>
+<ul>
+<li>Copia el siguiente contenido al <code>Dockerfile</code></li>
+</ul>
+<pre><code class="lang-dockerfile">FROM java:8u111-jre-alpine
+MAINTAINER Javi Moreno &lt;javi.moreno@capside.com&gt;
+
+COPY target/*.jar /app.jar
+
+EXPOSE 8080
+
+ENTRYPOINT  [&quot;java&quot;, &quot;-jar&quot;, &quot;/app.jar&quot;]
+
+CMD [&quot;&quot;]
+</code></pre>
+<ul>
+<li><p>Responde: ¿Por qué crees que no utilizamos la misma imagen base que en desarrollo? ¿Qué implicaciones tiene esto? ¿Cómo minimizarías los riesgos asociados?</p>
+</li>
+<li><p>Utiliza la línea de comando para construir la imagen (vigila el punto final, es fácil olvidarlo). Sustituye <em>&lt;repositorio&gt;</em> por el nombre de tu repositorio.</p>
+</li>
+</ul>
+<pre><code>mvn clean package
+docker build -t &lt;repositorio&gt;/javawithdocker .
+</code></pre><ul>
+<li>Sube el archivo al repositorio</li>
+</ul>
+<pre><code class="lang-bash">docker login
+docker push &lt;repositorio&gt;/javawithdocker
+</code></pre>
+<ul>
+<li>Ejecuta la imagen</li>
+</ul>
+<pre><code class="lang-bash">docker run -it -p 8080:8080 --name demo --rm &lt;repositorio&gt;/javawithdocker
+</code></pre>
+<h2 id="agregando-resiliencia">Agregando resiliencia</h2>
+<ul>
+<li>Modifica el Dockerfile para que incluya un <em>health check</em></li>
+</ul>
+<pre><code>FROM java:8u111-jre-alpine
+MAINTAINER Javi Moreno &lt;javi.moreno@capside.com&gt;
+
+COPY target/*.jar /app.jar
+
+EXPOSE 8080
+
+ENTRYPOINT  [&quot;java&quot;, &quot;-jar&quot;, &quot;/app.jar&quot;]
+
+HEALTHCHECK  --start-period=60s --interval=20s --timeout=5s --retries=3 \
+             CMD wget -q -s http://127.0.0.1:8080/health || exit 1 
+
+CMD [&quot;&quot;]
+</code></pre><ul>
+<li>Reconstruye la imagen</li>
+</ul>
+<pre><code>mvn clean package
+docker build -t &lt;repositorio&gt;/ciberado .
+</code></pre><ul>
+<li>Lanza el contenedor con la opción de reiniciar en caso de error (o <em>always</em>, si la prefieres). <strong>ATENCIÓN</strong>: un container <em>unhealthy</em> no se reinicia de forma automática aunque <em>swarm</em> no enviará tráfico al mismos hasta que pase a ser <em>healthy</em>.</li>
+</ul>
+<pre><code class="lang-bash">docker run -d -p 8080:8080 --name demo --restart on-failure ciberado/javawithdocker
+</code></pre>
+<ul>
+<li>Comprueba el estado del contenedor</li>
+</ul>
+<pre><code class="lang-bash">REM windows
+docker ps
+docker inspect --format=&quot;{{json .State.Health.Status}}&quot; demo
+</code></pre>
+<pre><code class="lang-bash"># bash
+docker ps
+docker inspect --format=&#39;{{json .State.Health.Status}}&#39; demo
+</code></pre>
+<ul>
+<li><p>Invoca el endpoint con <code>System.exit</code> para generar una salida anómala abriendo  <code>127.0.0.1:8080/messages?type=oops</code> con el navegador.</p>
+</li>
+<li><p>Comprueba que el contenedor se ha reiniciado automáticamente en apenas unos segundos</p>
+</li>
+</ul>
+<pre><code class="lang-bash">docker ps
+</code></pre>
+<ul>
+<li>Elimina el contendor</li>
+</ul>
+<pre><code>docker rm --force demo
+</code></pre><h2 id="conclusi-n">Conclusión</h2>
+<p>¡Enhorabuena! Ya eres capaz de integrar tu entorno de desarrollo preferido con Docker y de generar imágenes como artefactos a publicar. A partir de aquí deberías explorar:</p>
+<ul>
+<li>Cómo orquestar todo tu stack incluyendo la base de datos</li>
+<li>Cómo gestionar los tests de integración y end-to-end</li>
+</ul>
+</body>
+</html>
+<meta charset=utf-8> 

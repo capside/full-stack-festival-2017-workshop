@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>README_en.md</title>
+  <link rel="stylesheet" href="../modest.css">
+</head>
+<body>
+<h1 id="dockerizing-tools">Dockerizing tools</h1>
+<h2 id="you-will-learn-to-">You will learn to...</h2>
+<ul>
+<li>Create images from a Dockerfile</li>
+<li>Package a tool as an image with its dependencies</li>
+<li>Easily execute your dockerized toolchain</li>
+</ul>
+<h2 id="the-tool">The tool</h2>
+<p>We have developed our own version of the <em>excuses</em> command using nodejs:</p>
+<pre><code class="lang-javascript">var fs = require(&#39;fs&#39;);
+var excuse = fs.readFileSync(&#39;excuse.txt&#39;)
+               .toString().split(&quot;\n&quot;);
+var idx = process.argv.length &gt;= 3 ? 
+          process.argv[2] : 
+          Math.floor(Math.random() * excuse.length);
+console.log(excuse[idx % excuse.length]);
+</code></pre>
+<p>Invoking the tool without any param will show a random qoute. If you pass a numeric param it will show you the quote corresponding to that number index. Here you have some examples of sentences present in the <code>excuses.txt</code> file.</p>
+<pre><code>I have to floss my cat.
+I&#39;ve dedicated my life to linguine.
+I want to spend more time with my blender.
+The President said he might drop in.
+The man on television told me to say tuned.
+I&#39;ve been scheduled for a karma transplant.
+</code></pre><h2 id="the-dockerfile">The Dockerfile</h2>
+<p>The most intersting part of the <code>Dockerfile</code> is the <code>ENTRYPOINT</code>: it will specify the command to be executed and we will use <code>CMD</code> to provide default options for that command.</p>
+<pre><code>FROM node:7.10.0-alpine
+
+COPY excuse.js excuses.txt ./
+
+ENTRYPOINT [&quot;node&quot;, &quot;excuse.js&quot;]
+CMD [&quot;0&quot;]
+</code></pre><h2 id="building-the-image">Building the image</h2>
+<p>From the directory that contains the project execute:</p>
+<pre><code>docker build -t &lt;your-registry&gt;/excuse .
+docker tag &lt;your-registry&gt;/excuse latest
+</code></pre><p>Optionally you can upload it to the registry:</p>
+<pre><code>docker push &lt;your-registry&gt;/excuse
+</code></pre><h2 id="testing">Testing</h2>
+<p>Remember that by using <code>ENTRYPOINT</code> instead of just <code>CMD</code> the first parameter after the name of the image in the <code>run</code> command will be the first parameter passed to the entrypoint, not the name of the command to be executed inside the container.</p>
+<pre><code>docker run --rm -it &lt;your-registry&gt;/excuse 
+
+docker run --rm -it &lt;your-registry&gt;/excuse 20
+</code></pre><h2 id="making-execution-easier">Making execution easier</h2>
+<p>You can take advantage of the <code>alias</code> command in Unix or the <code>doskey</code> command in Windows to facilitate the invocation of the tool:</p>
+<p>Windows</p>
+<pre><code>doskey qt=docker run --rm -it &lt;your-registry&gt;/excuse $*
+</code></pre><p>Linux</p>
+<pre><code>alias http=&#39;docker run -it --rm &lt;your-registry&gt;/excuse&#39;
+</code></pre><p>Now you just need to invoke <code>qt</code> to launch your container.</p>
+<h2 id="dockerizing-httpie">Dockerizing Httpie</h2>
+<p><a href="http://httpie.org">Httpie</a> is the application that will make you forget curl. We are going to dockerize it and we will discouse the limitations of this approach on Windows &amp; Mac.</p>
+<p>Windows</p>
+<pre><code>doskey http=docker run -it --rm --net=host clue/httpie $*
+http https://api.chucknorris.io/jokes/random
+</code></pre><p>Linux</p>
+<pre><code>alias http=&#39;docker run -it --rm --net=host clue/httpie&#39;
+http https://api.chucknorris.io/jokes/random
+</code></pre><ul>
+<li>Why you cannot use <code>localhost</code> or <code>127.0.0.1</code> as the destination address?</li>
+</ul>
+<h2 id="dockerizing-azure-cli">Dockerizing Azure CLI</h2>
+<p>Azure cli is the multiplatform command line tool that allows you to interact with the Microsoft cloud. It is based on Python and often is not really easy to install if you are running Windows. Lets solve that problem with Docker.</p>
+<ul>
+<li>Execute the tool just to get familiar with it</li>
+</ul>
+<pre><code>docker run -it microsoft/azure-cli azure --version
+</code></pre><ul>
+<li>Launch de default process (a shell) and get a list of the vm running in your account</li>
+</ul>
+<pre><code>docker run -it microsoft/azure-cli azure 
+root@406bf15c8930:/# azure login
+root@406bf15c8930:/# azure vm list-usage -l westeurope
+</code></pre><ul>
+<li>Now invoke directly the tool from the host prompt. Can you explain why it is not working as expected?</li>
+</ul>
+<pre><code>docker run -it --rm azure login
+docker run -it --rm azure vm list-usage -l westeurope
+</code></pre><ul>
+<li>Mount the volume that keeps the configuration of the tool so the container can access to the recorded credentials</li>
+</ul>
+<pre><code>REM windows
+docker run -it --rm --volume %USERPROFILE%/.azure:/root/.azure microsoft/azure-cli azure login
+docker run -it --rm --volume %USERPROFILE%/.azure:/root/.azure microsoft/azure-cli azure vm list-usage -l westeurope
+</code></pre><pre><code># BASH
+docker run -it --rm --volume $HOME/.azure:/root/.azure microsoft/azure-cli azure login
+docker run -it --rm --volume $HOME/.azure:/root/.azure microsoft/azure-cli azure vm list-usage -l westeurope
+</code></pre><ul>
+<li>Now create an alias in order to make easier the invocation of the tool. Remember: if you are using <em>git bash</em> you need to disable the path transformation first with <code>export MSYS_NO_PATHCONV=1</code>.</li>
+</ul>
+<p>Windows</p>
+<pre><code>doskey azure=docker run -it --rm --volume %USERPROFILE%/.azure:/root/.azure microsoft/azure-cli azure $*
+azure vm list-usage westeurope
+</code></pre><p>Linux<br>```<br>alias azure=&#39;docker run -it --rm --volume $HOME/.azure:/root/.azure microsoft/azure-cli azure&#39;<br>azure vm list-usage westeurope</p>
+<h2 id="conclusions">Conclusions</h2>
+<p>Welldone! Now you are aware of how easily you can dockerize your tools, from <em>grunt</em> to different versions of the runtime of <em>nodejs</em>. And yes, you can also dockerize Docker but that is an story for another day.</p>
+</body>
+</html>
+<meta charset=utf-8> 

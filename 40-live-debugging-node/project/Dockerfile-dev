@@ -1,0 +1,9 @@
+FROM node:alpine
+
+RUN npm install -g nodemon
+
+COPY riversong.js .
+
+EXPOSE 80 
+
+CMD ["nodemon", "--inspect=0.0.0.0:9229", "riversong.js"]

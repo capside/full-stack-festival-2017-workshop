@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>README.md</title>
+  <link rel="stylesheet" href="../modest.css">
+</head>
+<body>
+<h1 id="dockerizaci-n-de-herramientas">Dockerización de herramientas</h1>
+<h2 id="aprender-s-a-">Aprenderás a...</h2>
+<ul>
+<li>Crear imágenes a partir de un Dockerfile</li>
+<li>Empaquetar como una imagen una herramienta y sus dependencias</li>
+<li>Ejecutar de forma cómoda tu <em>toolchain</em> en un contenedor</li>
+</ul>
+<h2 id="requisitos">Requisitos</h2>
+<ul>
+<li>Te será útil tener tu propia cuenta en un <em>registry</em>, por ejemplo en <a href="http://hub.docker.io">http://hub.docker.io</a>.</li>
+<li>Terminarás antes si sustituyes en este fichero todas las apariciones de &lt;tu-registro&gt; por el nombre real de tu repositorio (por ejemplo, <em>ciberado</em> en mi caso).</li>
+</ul>
+<h2 id="la-herramienta">La herramienta</h2>
+<p>Hemos programado nuestra propia pequeña versión del commando <em>excuse</em> usando nodejs:</p>
+<pre><code class="lang-javascript">var fs = require(&#39;fs&#39;);
+var excuse = fs.readFileSync(&#39;excuses.txt&#39;)
+               .toString().split(&quot;\n&quot;);
+var idx = process.argv.length &gt;= 3 ? 
+          process.argv[2] : 
+          Math.floor(Math.random() * excuse.length);
+console.log(excuse[idx % excuse.length]);
+</code></pre>
+<p>Una invocación sin parámetros muestra una frase aleatoria. Si pasamos un parámetro numérico muestra la frase cuyo índice corresponde al número indicado. Aquí tienes algunos ejemplos de frases contenidas en el fichero <code>excuses.txt</code>:</p>
+<pre><code>I have to floss my cat.
+I&#39;ve dedicated my life to linguine.
+I want to spend more time with my blender.
+The President said he might drop in.
+The man on television told me to say tuned.
+I&#39;ve been scheduled for a karma transplant.
+</code></pre><h2 id="el-dockerfile">El Dockerfile</h2>
+<p>La parte más interesante del <em>Dockerfile</em> es que utiliza <code>ENTRYPOINT</code> para especificar el comando a ejecutar y <code>CMD</code> para mostrar por defecto siempre la primera frase del fichero.</p>
+<pre><code>FROM node:7.10.0-alpine
+
+COPY excuse.js excuses.txt ./
+
+ENTRYPOINT [&quot;node&quot;, &quot;excuse.js&quot;]
+CMD [&quot;0&quot;]
+</code></pre><h2 id="construyendo-la-imagen">Construyendo la imagen</h2>
+<p>Desde la carpeta que contiene el proyecto ejecuta:</p>
+<pre><code>docker build -t &lt;tu-registro&gt;/excuse .
+docker tag &lt;tu-registro&gt;/excuse latest
+</code></pre><p>Opcionalmente puedes subirla al registro:</p>
+<pre><code>docker push &lt;tu-registro&gt;/excuse
+</code></pre><h2 id="ejecutando-una-prueba">Ejecutando una prueba</h2>
+<p>Fíjate que al haber utilizado en el <em>Dockerfile</em> <code>ENTRYPOINT</code> en lugar de directamente <code>CMD</code> el parámetro indicado tras el nombre de la imagen (<code>20</code>) se toma como <strong>el primer parámetro del comando a ejecutar</strong>, no como el nombre del comando en sí.</p>
+<pre><code>docker run --rm -it &lt;tu-registro&gt;/excuse 
+
+docker run --rm -it &lt;tu-registro&gt;/excuse 20
+</code></pre><p>Aún así recuerda que con <code>--entrypoint</code> es posible sobreescribir el proceso lanzado por el contenedor.</p>
+<h2 id="facilitando-la-ejecuci-n">Facilitando la ejecución</h2>
+<p>Puedes crear un <em>alias</em> para no tener que escribir todo el encantamiento anterior:</p>
+<p>Windows</p>
+<pre><code>doskey qt=docker run --rm -it ciberado/excuse $*
+</code></pre><p>Linux</p>
+<pre><code>alias http=&#39;docker run -it --rm ciberado/excuse&#39;
+</code></pre><p>Ahora tan solo necesitas ejecutar <code>qt</code> para lanzar el contendor.</p>
+<h2 id="dockerizando-httpie">Dockerizando Httpie</h2>
+<p><a href="http://httpie.org">Httpie</a> es el programa que hará que te olvides del venerable <code>curl</code>. Vamos a ejecutarlo dockerizado, aunque comprobarás que con algunas limitaciones:</p>
+<p>Windows</p>
+<pre><code>doskey http=docker run -it --rm --net=host clue/httpie $*
+http https://api.chucknorris.io/jokes/random
+</code></pre><p>Linux</p>
+<pre><code>alias http=&#39;docker run -it --rm --net=host clue/httpie&#39;
+http https://api.chucknorris.io/jokes/random
+</code></pre><ul>
+<li>¿Por qué no es posible utilizar Httpie con direcciones locales en Windows y Mac?</li>
+</ul>
+<h2 id="dockerizando-azure-cli">Dockerizando Azure CLI</h2>
+<p>Azure cli es la herramienta multiplataforma que permite automatizar la interacción con el cloud de Microsoft. Está basada en Python y a menudo es problemático instalarla correctamente (sobre todo en Windows). Vamos a solucionarlo con Docker.</p>
+<ul>
+<li>Ejecuta la herramienta para familiarizarte con ella</li>
+</ul>
+<pre><code>docker run -it azuresdk/azure-cli-python az --version
+</code></pre><ul>
+<li>Lanza el proceso por defecto (una shell) y obtén la lista de las vm que corren en tu cuenta de Azure</li>
+</ul>
+<pre><code>docker run -it azuresdk/azure-cli-python azure 
+root@406bf15c8930:/# az login
+root@406bf15c8930:/# az vm list-usage -l westeurope
+</code></pre><ul>
+<li>Invoca directamente la herramienta desde el prompt del host. ¿Puedes explicar por qué no funciona como esperamos?</li>
+</ul>
+<pre><code>docker run -it --rm azuresdk/azure-cli-python az login
+docker run -it --rm azuresdk/azure-cli-python az vm list-usage -l westeurope
+</code></pre><ul>
+<li>Monta el volumen que almacena la configuración de la herramienta para que recuerde las credenciales proporcionadas</li>
+</ul>
+<pre><code>REM windows
+docker run -it --rm --volume %USERPROFILE%/.azure:/root/.azure azuresdk/azure-cli-python az login
+docker run -it --rm --volume %USERPROFILE%/.azure:/root/.azure azuresdk/azure-cli-python az vm list-usage -l westeurope
+</code></pre><pre><code># BASH
+docker run -it --rm --volume $HOME/.azure:/root/.azure azuresdk/azure-cli-python az login
+docker run -it --rm --volume $HOME/.azure:/root/.azure azuresdk/azure-cli-python az vm list-usage -l westeurope
+</code></pre><ul>
+<li>Crea un alias para que la invocación sea más sencilla. Recuerda que si estás usando <em>git bash</em> (mingw) debes desactivar la transformación de rutas con <code>export MSYS_NO_PATHCONV=1</code>.</li>
+</ul>
+<pre><code>REM windows
+doskey az=docker run -it --rm --volume %USERPROFILE%/.azure:/root/.azure azuresdk/azure-cli-python az $*
+az vm list-usage westeurope
+</code></pre><pre><code># BASH
+alias az=&#39;docker run -it --rm --volume $HOME/.azure:/root/.azure azuresdk/azure-cli-python az&#39;
+az vm list-usage westeurope
+</code></pre><h2 id="lanza-un-contenedor-en-aci">Lanza un contenedor en ACI</h2>
+<p>Azure Container Instances permite crear contenedores en hosts gestionados de una forma muy sencilla.</p>
+<ul>
+<li>Asegúrate de que has hecho login correctamente en tu cuenta de Azure y que has activado la subscripción sobre la que quieres trabajar</li>
+</ul>
+<pre><code>az login
+az account list --output table
+</code></pre><ul>
+<li>Crea un <em>resource group</em> para gestionar los contenedores que lances:</li>
+</ul>
+<pre><code>az group create --name contdemo --location westeurope
+</code></pre><ul>
+<li>Lanza el contenedor:</li>
+</ul>
+<pre><code>az container create -g contdemo --name riversong --image ciberado/riversong:port80 --ip-address public
+</code></pre><ul>
+<li>Revisa los logs de creación para asegurarte de que todo ha ido bien</li>
+</ul>
+<pre><code>az container logs --resource-group contdemo --name riversong
+</code></pre><ul>
+<li>Recupera la IP asignada y visítala:</li>
+</ul>
+<pre><code>az container list --output table
+</code></pre><ul>
+<li>Elimina los recursos creados:</li>
+</ul>
+<pre><code>az group delete --name contdemo
+</code></pre><h2 id="conclusiones">Conclusiones</h2>
+<p>¡Enhorabuena! Ya puedes imaginarte cómo de fácil es dockerizar distintas herramientas, desde <em>grunt</em> a distintas versiones del runtime de <em>nodejs</em>. Y sí, también puedes dockerizar docker. Pero esa historia la contaremos otro día.</p>
+</body>
+</html>
+<meta charset=utf-8> 

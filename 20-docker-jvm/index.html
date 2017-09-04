@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>README.md</title>
+  <link rel="stylesheet" href="../modest.css">
+</head>
+<body>
+<h1 id="l-mites-en-docker-y-la-jvm">Límites en Docker y la jvm</h1>
+<h2 id="aprender-s-a-">Aprenderás a...</h2>
+<ul>
+<li>Entender el comportamiento de la jvm en un contenedor</li>
+<li>Configurar correctamente los límites de la misma</li>
+</ul>
+<h2 id="repaso-l-mites-en-jvm">Repaso: límites en jvm</h2>
+<p>Mediante <code>-Xmx</code> se establece el límite superior de memoria asignada a la jvm. Si necesitas ejecutar una aplicación asignándole 1GB de ram usarás:</p>
+<pre><code>java -Xmx1Gb -jar demo.jar
+</code></pre><p>Por defecto el valor de Xmx suele ser un 25% de la memoria total disponible.</p>
+<h2 id="docker-y-la-instrumentaci-n-de-ram">Docker y la instrumentación de RAM</h2>
+<p>Vamos a crear un contenedor asignándole solo 10MB de memoria y veremos qué cantidad de RAM nos deja disponibles para nosotros:</p>
+<pre><code>docker run -it --memory 10m bash
+bash-4.4# free
+bash-4.4# top
+bash-4.4# cat /sys/fs/cgroup/memory/memory.stat
+</code></pre><h2 id="responde-">Responde:</h2>
+<ul>
+<li>¿Qué cantidad de memoria libre te indican estas herramientas? ¿Por qué?</li>
+<li>¿Qué sucederá si arrancas una jvm sin explicitar <code>-Xmx</code>?</li>
+<li>¿Crees que herramientas como <em>new relic</em> son fiables para monitorizar la ram libre?</li>
+</ul>
+<h2 id="docker-stats">Docker stats</h2>
+<p>La forma correcta de averiguar la memoria libre es usar <code>docker stats</code>. Si quieres utilizarlo desde el interior de un contenedor es posible montar el socket de comunicación para usar docker in docker:</p>
+<pre><code>docker run -it -v /var/run/docker.sock:/var/run/docker.sock --memory 10m docker /bin/sh
+/ # docker stats --no-stream $HOSTNAME
+</code></pre><h2 id="responde-">Responde:</h2>
+<ul>
+<li>¿Qué consecuencias tiene utilizar docker in docker a nivel de seguridad?</li>
+</ul>
+<h2 id="experiencia">Experiencia</h2>
+<ul>
+<li>-Xmx</li>
+<li>-XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap</li>
+<li>-XX:CICompilerCount</li>
+<li>-XX:ParallelGCThreads</li>
+</ul>
+<h2 id="repaso-l-mites-en-docker">Repaso: límites en Docker</h2>
+<ul>
+<li>--cpus 1 </li>
+<li>--memory 512m </li>
+<li>--blkio-weight 500</li>
+</ul>
+</body>
+</html>
+<meta charset=utf-8> 
