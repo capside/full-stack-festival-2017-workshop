@@ -108,7 +108,7 @@ alias http='docker run -it --rm --net=host clue/httpie'
 http https://api.chucknorris.io/jokes/random
 ```
 
-* Why you cannot use `localhost` or `127.0.0.1` as the destination address?
+* Why can't you use `localhost` or `127.0.0.1` as the destination address?
 
 ## Dockerizing Azure CLI
 
